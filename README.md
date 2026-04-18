@@ -132,7 +132,7 @@ Answer `y` to replace it; anything else cancels. Pass `-y` to skip the confirmat
 
 After setup completes, a full `apt upgrade` runs in the background on the server (~2–5 min). Your VPN works during and after; no action needed.
 
-**Setup also does a stale-file sweep.** Before creating the droplet, it scans your current directory and home folder for `fourdollarvpn-client-*.conf` files. Any that point at a droplet DigitalOcean no longer has are flagged as stale and you're prompted whether to delete them (with matching `.svg` QR codes). Useful for not accumulating dead configs across repeated setups.
+**Setup also does a stale-file sweep.** Before creating the droplet, it scans your current directory and home folder for `fdvpn-*.conf` files. Any that point at a droplet DigitalOcean no longer has are flagged as stale and you're prompted whether to delete them (with matching `.svg` QR codes). Useful for not accumulating dead configs across repeated setups.
 
 ### `fourdollarvpn status`
 
@@ -201,7 +201,7 @@ fourdollarvpn add-client [--ip SERVER_IP] [--name NAME] [--open-qr] [-o OUTPUT]
 3. Adds the new peer to the server's WireGuard config *and* live-adds it to the running interface — no restart, existing clients stay connected
 4. If you passed `--name`, writes a `# fourdollarvpn: name=<name>` comment above the peer block on the server. WireGuard ignores comments; every machine that manages this droplet sees the same name. Names show up in `list-clients` and `remove-client` can target them directly (`fourdollarvpn remove-client phone`).
 5. Saves two files locally. The filename encodes VPN IP, optional label, and creation time so nothing ever collides silently:
-   - `fourdollarvpn-client-<name>-<vpn-ip>-<HHMMMMDD>.conf` (e.g. `fourdollarvpn-client-phone-10-66-66-3-14140417.conf`)
+   - `fdvpn-<name>-<vpn-ip>-<HHMM>.conf` (e.g. `fdvpn-phone-10-66-66-3-1414.conf`) — the short prefix keeps the tunnel name inside WireGuard for Windows' 32-character limit
    - `...svg` — same base name, open in any image viewer/browser to scan with a phone
 6. Prints a QR code in the terminal for instant mobile scanning
 7. Scans the output directory for configs pointing at droplets DO no longer has and prompts to delete them (same sweep as `setup`)
@@ -289,8 +289,8 @@ All traffic from your device gets encrypted and routed through the server, hidin
 
 Every `setup` and `add-client` run saves two files side by side:
 
-- `fourdollarvpn-...conf` — the raw WireGuard config
-- `fourdollarvpn-...svg` — a scannable QR code of the same config
+- `fdvpn-...conf` — the raw WireGuard config
+- `fdvpn-...svg` — a scannable QR code of the same config
 
 **Desktop (Windows / Mac / Linux):**
 Open WireGuard → **Add Tunnel** → **Import from file** → pick the `.conf`. Activate.

@@ -13,8 +13,8 @@ env/
 *.conf
 !example.conf
 # Generated client configs + QR codes (per-droplet, user-specific)
-fourdollarvpn-*.svg
-fourdollarvpn-*.conf
+fdvpn-*.svg
+fdvpn-*.conf
 .idea/
 .vscode/
 *.swp

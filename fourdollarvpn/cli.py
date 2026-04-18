@@ -123,14 +123,11 @@ def _offer_stale_config_cleanup(
         if not d:
             continue
         try:
-            # Two patterns exist in the wild:
-            # - fourdollarvpn-client-<name>-<vpn-ip>-<stamp>.conf (add-client)
-            # - fourdollarvpn-<server-ip>-<stamp>.conf             (setup)
-            # Earlier builds of setup omitted the timestamp.
-            matches = (
-                glob.glob(os.path.join(d, "fourdollarvpn-client-*.conf"))
-                + glob.glob(os.path.join(d, "fourdollarvpn-[0-9]*.conf"))
-            )
+            # Filename patterns we scan:
+            # - fdvpn-<name>-<vpn-ip>-<stamp>.conf   (add-client, named)
+            # - fdvpn-<vpn-ip>-<stamp>.conf          (add-client, unnamed)
+            # - fdvpn-<server-ip>-<stamp>.conf       (setup)
+            matches = glob.glob(os.path.join(d, "fdvpn-*.conf"))
         except OSError:
             continue
         for path in matches:
@@ -593,9 +590,9 @@ def cmd_setup(args):
         # Step 8: Save client config (0600, refuse to follow symlinks).
         # If cwd isn't writable (Windows CFA / OneDrive / Program Files),
         # fall back to the user's home directory.
-        stamp = time.strftime("%H%M%m%d")
+        stamp = time.strftime("%H%M")
         default_conf = (
-            f"fourdollarvpn-{server_ip.replace('.', '-')}-{stamp}.conf"
+            f"fdvpn-{server_ip.replace('.', '-')}-{stamp}.conf"
         )
         config_path = _save_with_fallback(
             args.output or default_conf,
@@ -931,7 +928,7 @@ def cmd_destroy(args):
     # glob-delete, since they could belong to a different still-
     # running droplet. Just remind the user they're dead keys now.
     console.print(
-        "\n[dim]The `fourdollarvpn-client-*.conf` / `.svg` files generated for "
+        "\n[dim]The `fdvpn-*.conf` / `.svg` files generated for "
         "this droplet are now dead keys — safe to delete from wherever "
         "you saved them (working dir / home / --output path). They can't "
         "connect to anything anymore.[/dim]"
@@ -987,13 +984,13 @@ def cmd_add_client(args):
             )
 
         name_slug = f"{args.name}-" if args.name else ""
-        # HHMMMMDD — short, recognizable timestamp so two configs with
-        # the same name + VPN IP (e.g. re-adding "phone" after a droplet
-        # rebuild) get distinct filenames. No underscores / dashes in
-        # the stamp itself so the filename visually breaks cleanly.
-        stamp = time.strftime("%H%M%m%d")
+        # HHMM stamp keeps filenames unique across same-minute re-adds
+        # without blowing the 32-char WireGuard-for-Windows tunnel-name
+        # limit. The `fdvpn-` short prefix exists for the same reason;
+        # `fourdollarvpn-` leaves only ~18 chars for IP + stamp.
+        stamp = time.strftime("%H%M")
         default_conf = (
-            f"fourdollarvpn-client-{name_slug}"
+            f"fdvpn-{name_slug}"
             f"{client_ip.replace('.', '-')}-{stamp}.conf"
         )
         config_path = _save_with_fallback(
