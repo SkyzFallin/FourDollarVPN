@@ -38,6 +38,7 @@ from .ssh import (
 )
 from .crypto import generate_keypair_local, generate_preshared_key
 from .wireguard import (
+    WG_NETWORK,
     add_client_and_allocate_ip,
     generate_client_config,
     get_setup_steps,
@@ -123,10 +124,10 @@ def _offer_stale_config_cleanup(
         if not d:
             continue
         try:
-            # Filename patterns we scan:
-            # - fdvpn-<name>-<vpn-ip>-<stamp>.conf   (add-client, named)
-            # - fdvpn-<vpn-ip>-<stamp>.conf          (add-client, unnamed)
-            # - fdvpn-<server-ip>-<stamp>.conf       (setup)
+            # All FourDollarVPN-generated configs start with 'fdvpn-';
+            # the exact format varies between setup and add-client, but
+            # classification uses the Endpoint line inside the file, not
+            # the filename.
             matches = glob.glob(os.path.join(d, "fdvpn-*.conf"))
         except OSError:
             continue
@@ -591,8 +592,14 @@ def cmd_setup(args):
         # If cwd isn't writable (Windows CFA / OneDrive / Program Files),
         # fall back to the user's home directory.
         stamp = time.strftime("%H%M")
+        # Setup's first client is always allocated WG_NETWORK.2. Use the
+        # VPN IP (not the server's public IP) in the filename so this
+        # config looks consistent with the ones add-client produces
+        # later — all of them identify the client by its 10.66.66.x
+        # address.
+        first_client_ip = f"{WG_NETWORK}.2"
         default_conf = (
-            f"fdvpn-{server_ip.replace('.', '-')}-{stamp}.conf"
+            f"fdvpn-{first_client_ip.replace('.', '-')}-{stamp}.conf"
         )
         config_path = _save_with_fallback(
             args.output or default_conf,
