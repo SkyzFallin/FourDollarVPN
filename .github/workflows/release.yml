@@ -1,0 +1,140 @@
+name: Build release binaries
+
+# Builds single-file PyInstaller binaries for Windows, macOS (Intel + Apple
+# Silicon), and Linux x64 on every tag push. Attaches them to the matching
+# GitHub release so users can download and run without installing Python.
+#
+# Also triggerable manually via the "Run workflow" button — useful for
+# dry-running changes before cutting a tag, or for re-attaching binaries to
+# an existing release.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to attach binaries to (optional; blank = build only, no upload)'
+        required: false
+
+permissions:
+  contents: write  # needed to upload release assets
+
+env:
+  # Opt into Node.js 24 for JavaScript-based actions. GitHub is
+  # deprecating Node 20 (removed from runners 2026-09-16) and will
+  # force-default to 24 starting 2026-06-02. Opting in now silences
+  # the deprecation warnings and means we'll already be on the
+  # default behavior when the switch happens.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  build:
+    name: Build ${{ matrix.asset }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            asset: fourdollarvpn-linux-x64
+            binary: fourdollarvpn
+            arch: x64
+          - os: macos-14          # Apple Silicon (M-series), native arm64
+            asset: fourdollarvpn-macos-arm64
+            binary: fourdollarvpn
+            arch: arm64
+          - os: macos-14          # Same Apple Silicon runner, x86_64 via Rosetta
+            asset: fourdollarvpn-macos-x64
+            binary: fourdollarvpn
+            arch: x64
+          - os: windows-latest
+            asset: fourdollarvpn-windows-x64.exe
+            binary: fourdollarvpn.exe
+            arch: x64
+          # NOTE: Intel Mac binary is produced by running PyInstaller under
+          # Rosetta 2 on the Apple Silicon runner (the x86_64 variant of
+          # Python from setup-python invokes automatically under Rosetta).
+          # Previously we tried the dedicated macos-13 (Intel) runner pool
+          # but hit 10+ minute queues regularly blocking releases. Dual
+          # builds on macos-14 use the same fast, reliable pool for both.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rosetta 2
+        if: matrix.os == 'macos-14' && matrix.arch == 'x64'
+        run: softwareupdate --install-rosetta --agree-to-license
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: ${{ matrix.arch }}
+
+      # FALLBACK (keep commented until needed):
+      # If setup-python stops shipping x86_64 Python builds for macos-14
+      # (possible if GitHub drops x64 support from Apple Silicon images),
+      # delete the setup-python step above for the Intel-Mac matrix entry
+      # and uncomment this block. python.org's macOS installer is
+      # universal2 — one package that contains both arm64 and x86_64
+      # Pythons — and invoking it under `arch -x86_64` selects the Intel
+      # half. `python3` on PATH will then be x86_64 for the rest of the
+      # job.
+      #
+      # - name: Set up universal2 Python from python.org (Intel Mac fallback)
+      #   if: matrix.os == 'macos-14' && matrix.arch == 'x64'
+      #   run: |
+      #     curl -L -o /tmp/python.pkg \
+      #       https://www.python.org/ftp/python/3.12.8/python-3.12.8-macos11.pkg
+      #     sudo installer -pkg /tmp/python.pkg -target /
+      #     echo "/Library/Frameworks/Python.framework/Versions/3.12/bin" >> "$GITHUB_PATH"
+      #     # Confirm we really are x86_64 under Rosetta:
+      #     arch -x86_64 python3 -c "import platform; assert platform.machine() == 'x86_64', platform.machine()"
+
+      - name: Install build deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+          pip install .
+
+      - name: Build single-file binary
+        shell: bash
+        run: |
+          pyinstaller \
+            --onefile \
+            --name fourdollarvpn \
+            --collect-submodules qrcode \
+            --collect-submodules paramiko \
+            --collect-submodules cryptography \
+            --collect-submodules rich \
+            fourdollarvpn/__main__.py
+
+      - name: Smoke-test --help
+        shell: bash
+        run: |
+          ./dist/${{ matrix.binary }} --help
+
+      - name: Rename asset
+        shell: bash
+        run: |
+          mv "dist/${{ matrix.binary }}" "dist/${{ matrix.asset }}"
+          if [ "${{ runner.os }}" != "Windows" ]; then
+            chmod +x "dist/${{ matrix.asset }}"
+          fi
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: dist/${{ matrix.asset }}
+          if-no-files-found: error
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.tag != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          files: dist/${{ matrix.asset }}
+          fail_on_unmatched_files: true

@@ -1,0 +1,21 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+venv/
+.venv/
+env/
+.env
+*.conf
+!example.conf
+# Generated client configs + QR codes (per-droplet, user-specific)
+fourdollarvpn-*.svg
+fourdollarvpn-*.conf
+.idea/
+.vscode/
+*.swp
+*.swo

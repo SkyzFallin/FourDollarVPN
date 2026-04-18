@@ -1,0 +1,5 @@
+requests>=2.32.4
+paramiko>=3.4.0
+rich>=13.7.0
+cryptography>=42.0.0
+qrcode>=7.4.0
