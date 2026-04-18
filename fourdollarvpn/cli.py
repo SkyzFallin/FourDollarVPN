@@ -1774,34 +1774,42 @@ def _guided_menu(parser: argparse.ArgumentParser) -> argparse.Namespace:
         "machine)[/dim yellow]"
     )
 
-    console.print("\n[bold]What would you like to do?[/bold]")
-    console.print(
-        "  [bold cyan]1[/bold cyan]  Add a new device "
-        "(phone, laptop, etc.) to this VPN" + key_note
-    )
-    console.print(
-        "  [bold cyan]2[/bold cyan]  See devices currently on this VPN"
-        + key_note
-    )
-    console.print(
-        "  [bold cyan]3[/bold cyan]  Remove a device from this VPN"
-        + key_note
-    )
-    console.print(
-        "  [bold cyan]4[/bold cyan]  Check that the server is "
-        "running correctly" + key_note
-    )
-    console.print("  [bold cyan]5[/bold cyan]  Create a brand new VPN (destroys the existing one)")
-    console.print("  [bold cyan]6[/bold cyan]  Destroy this VPN (stop billing)")
-    console.print("  [bold cyan]7[/bold cyan]  Uninstall FourDollarVPN from this computer")
-    console.print("  [bold cyan]q[/bold cyan]  Quit")
-
     # If there's more than one droplet, options 1-4 need an IP; auto-pick
     # the first for simplicity in the guided flow.
     server_ip = existing[0]["ip"] or ""
     ssh_dependent = ("1", "2", "3", "4")
 
+    # Options 1-4 leave the VPN state unchanged, so after they finish we
+    # loop back to the menu instead of exiting. 5/6/7 change or remove
+    # the VPN itself — handle those via the outer return path.
+    first_iteration = True
     while True:
+        if not first_iteration:
+            console.print()
+        first_iteration = False
+
+        console.print("[bold]What would you like to do?[/bold]")
+        console.print(
+            "  [bold cyan]1[/bold cyan]  Add a new device "
+            "(phone, laptop, etc.) to this VPN" + key_note
+        )
+        console.print(
+            "  [bold cyan]2[/bold cyan]  See devices currently on this VPN"
+            + key_note
+        )
+        console.print(
+            "  [bold cyan]3[/bold cyan]  Remove a device from this VPN"
+            + key_note
+        )
+        console.print(
+            "  [bold cyan]4[/bold cyan]  Check that the server is "
+            "running correctly" + key_note
+        )
+        console.print("  [bold cyan]5[/bold cyan]  Create a brand new VPN (destroys the existing one)")
+        console.print("  [bold cyan]6[/bold cyan]  Destroy this VPN (stop billing)")
+        console.print("  [bold cyan]7[/bold cyan]  Uninstall FourDollarVPN from this computer")
+        console.print("  [bold cyan]q[/bold cyan]  Quit")
+
         try:
             choice = console.input("\n> ").strip().lower()
         except (EOFError, KeyboardInterrupt):
@@ -1819,34 +1827,35 @@ def _guided_menu(parser: argparse.ArgumentParser) -> argparse.Namespace:
                 "machine, or pick option 5 to rebuild.[/red]"
             )
             continue
-        if choice == "1":
-            if len(existing) > 1:
-                console.print(
-                    f"[dim](Adding to {existing[0]['name']} — the first "
-                    f"one above. Use `fourdollarvpn add-client --ip ...` if "
-                    f"you meant a different server.)[/dim]"
-                )
-            cmd_args = ["add-client", "--open-qr"]
+        if choice in ssh_dependent:
+            if choice == "1":
+                if len(existing) > 1:
+                    console.print(
+                        f"[dim](Adding to {existing[0]['name']} — the first "
+                        f"one above. Use `fourdollarvpn add-client --ip ...` "
+                        f"if you meant a different server.)[/dim]"
+                    )
+                cmd_args = ["add-client", "--open-qr"]
+            elif choice == "2":
+                cmd_args = ["list-clients"]
+            elif choice == "3":
+                # remove-client will prompt interactively for which peer to
+                # remove since we don't pass an identifier.
+                cmd_args = ["remove-client"]
+            else:  # "4"
+                cmd_args = ["check"]
             if server_ip:
                 cmd_args += ["--ip", server_ip]
-            return parser.parse_args(cmd_args)
-        if choice == "2":
-            cmd_args = ["list-clients"]
-            if server_ip:
-                cmd_args += ["--ip", server_ip]
-            return parser.parse_args(cmd_args)
-        if choice == "3":
-            # remove-client will prompt interactively for which peer to
-            # remove since we don't pass an identifier.
-            cmd_args = ["remove-client"]
-            if server_ip:
-                cmd_args += ["--ip", server_ip]
-            return parser.parse_args(cmd_args)
-        if choice == "4":
-            cmd_args = ["check"]
-            if server_ip:
-                cmd_args += ["--ip", server_ip]
-            return parser.parse_args(cmd_args)
+            sub_args = parser.parse_args(cmd_args)
+            try:
+                sub_args.func(sub_args)
+            except SystemExit:
+                # Command bailed (success or handled error). Stay in the
+                # menu so the user can try something else.
+                pass
+            except KeyboardInterrupt:
+                console.print("\n[yellow]Cancelled — back to menu.[/yellow]")
+            continue
         if choice == "5":
             # Destroy ONLY the displayed droplet, then fall through to a
             # normal `setup`. Passing `-y` to setup would nuke every
