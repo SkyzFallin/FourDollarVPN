@@ -1776,17 +1776,26 @@ def _guided_menu(parser: argparse.ArgumentParser) -> argparse.Namespace:
         "(phone, laptop, etc.) to this VPN" + key_note
     )
     console.print(
-        "  [bold cyan]2[/bold cyan]  Check that the server is "
+        "  [bold cyan]2[/bold cyan]  See devices currently on this VPN"
+        + key_note
+    )
+    console.print(
+        "  [bold cyan]3[/bold cyan]  Remove a device from this VPN"
+        + key_note
+    )
+    console.print(
+        "  [bold cyan]4[/bold cyan]  Check that the server is "
         "running correctly" + key_note
     )
-    console.print("  [bold cyan]3[/bold cyan]  Create a brand new VPN (destroys the existing one)")
-    console.print("  [bold cyan]4[/bold cyan]  Destroy this VPN (stop billing)")
-    console.print("  [bold cyan]5[/bold cyan]  Uninstall FourDollarVPN from this computer")
+    console.print("  [bold cyan]5[/bold cyan]  Create a brand new VPN (destroys the existing one)")
+    console.print("  [bold cyan]6[/bold cyan]  Destroy this VPN (stop billing)")
+    console.print("  [bold cyan]7[/bold cyan]  Uninstall FourDollarVPN from this computer")
     console.print("  [bold cyan]q[/bold cyan]  Quit")
 
-    # If there's more than one droplet, options 1 and 2 need an IP;
-    # auto-pick the first for simplicity in the guided flow.
+    # If there's more than one droplet, options 1-4 need an IP; auto-pick
+    # the first for simplicity in the guided flow.
     server_ip = existing[0]["ip"] or ""
+    ssh_dependent = ("1", "2", "3", "4")
 
     while True:
         try:
@@ -1798,12 +1807,12 @@ def _guided_menu(parser: argparse.ArgumentParser) -> argparse.Namespace:
         if choice in ("", "q", "quit", "exit"):
             console.print("Bye.")
             sys.exit(0)
-        if choice in ("1", "2") and not has_key:
+        if choice in ssh_dependent and not has_key:
             console.print(
                 "[red]Can't do that from this computer — there's no local "
                 "SSH key for this droplet. It was probably set up on a "
                 "different machine. Either manage it from the original "
-                "machine, or pick option 3 to rebuild.[/red]"
+                "machine, or pick option 5 to rebuild.[/red]"
             )
             continue
         if choice == "1":
@@ -1818,11 +1827,23 @@ def _guided_menu(parser: argparse.ArgumentParser) -> argparse.Namespace:
                 cmd_args += ["--ip", server_ip]
             return parser.parse_args(cmd_args)
         if choice == "2":
-            cmd_args = ["check"]
+            cmd_args = ["list-clients"]
             if server_ip:
                 cmd_args += ["--ip", server_ip]
             return parser.parse_args(cmd_args)
         if choice == "3":
+            # remove-client will prompt interactively for which peer to
+            # remove since we don't pass an identifier.
+            cmd_args = ["remove-client"]
+            if server_ip:
+                cmd_args += ["--ip", server_ip]
+            return parser.parse_args(cmd_args)
+        if choice == "4":
+            cmd_args = ["check"]
+            if server_ip:
+                cmd_args += ["--ip", server_ip]
+            return parser.parse_args(cmd_args)
+        if choice == "5":
             # Destroy ONLY the displayed droplet, then fall through to a
             # normal `setup`. Passing `-y` to setup would nuke every
             # fourdollarvpn-prefixed droplet in the account, not just the one
@@ -1841,15 +1862,15 @@ def _guided_menu(parser: argparse.ArgumentParser) -> argparse.Namespace:
                 f"[green]Destroyed {target['name']} ({target['ip']}).[/green]"
             )
             return parser.parse_args(["setup"])
-        if choice == "4":
+        if choice == "6":
             # Target the first droplet explicitly so multi-droplet users
             # don't accidentally wipe more than they meant to.
             return parser.parse_args([
                 "destroy", "-y", "--droplet-id", str(existing[0]["id"]),
             ])
-        if choice == "5":
+        if choice == "7":
             return parser.parse_args(["uninstall"])
-        console.print("[red]Enter 1, 2, 3, 4, 5, or q.[/red]")
+        console.print("[red]Enter 1, 2, 3, 4, 5, 6, 7, or q.[/red]")
 
 
 if __name__ == "__main__":
