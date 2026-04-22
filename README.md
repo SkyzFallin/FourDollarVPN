@@ -12,8 +12,6 @@
 
 # FourDollarVPN
 
-**"I got 4 on it."**
-
 Set up a personal WireGuard VPN in one command. No networking knowledge required.
 
 **Author:** [SkyzFallin](https://github.com/SkyzFallin)
