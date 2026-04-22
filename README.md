@@ -387,6 +387,41 @@ sudo iptables -D OUTPUT ! -o wg0 -m mark ! --mark $(wg show wg0 fwmark) -m addrt
 **Windows / macOS / mobile:**
 The WireGuard app has a built-in kill switch. Enable "Block untunneled traffic (kill-switch)" in the tunnel settings (called "On-Demand" on iOS/macOS).
 
+### Split Tunneling (Exclude Sites or Apps from the VPN)
+
+By default FourDollarVPN routes **all** IPv4 traffic through the tunnel (`AllowedIPs = 0.0.0.0/0`). Sometimes you want exceptions — your bank that flags foreign IPs, a streaming service that geo-blocks datacenter ranges, or a work app that needs your real network.
+
+**Desktop (Windows / macOS / Linux) — exclude by IP range:**
+
+WireGuard routes by IP, not by domain, so exclusions are expressed as CIDR ranges rather than URLs. Edit the tunnel's `AllowedIPs` to cover everything *except* the ranges you want out.
+
+1. Find the IPs you want to exclude: `nslookup bank.example.com` (note: CDNs return many IPs and rotate — exclusions work best for services with stable IP ranges, like your home/office subnet or a specific SaaS).
+2. Use a calculator such as [AllowedIPs Calculator](https://www.procustodibus.com/blog/2021/03/wireguard-allowedips-calculator/) — paste `0.0.0.0/0` and the excluded CIDR, copy the result.
+3. In the WireGuard app: edit the tunnel → replace the `AllowedIPs` line with the calculator output → Save → reactivate.
+
+Example (exclude your home LAN `192.168.1.0/24`):
+```
+AllowedIPs = 0.0.0.0/1, 128.0.0.0/2, 192.0.0.0/9, 192.128.0.0/11, 192.160.0.0/13, 192.168.0.0/24, 192.168.2.0/23, 192.168.4.0/22, 192.168.8.0/21, 192.168.16.0/20, 192.168.32.0/19, 192.168.64.0/18, 192.168.128.0/17, 192.169.0.0/16, 192.170.0.0/15, 192.172.0.0/14, 192.176.0.0/12, 192.192.0.0/10, 193.0.0.0/8, 194.0.0.0/7, 196.0.0.0/6, 200.0.0.0/5, 208.0.0.0/4, 224.0.0.0/3
+```
+
+The Windows WireGuard client also has a one-click **Exclude private IPs** button in the tunnel editor that handles RFC1918 ranges automatically.
+
+**Mobile — Android (exclude by app):**
+
+Android WireGuard supports true per-app split tunneling:
+
+1. Open the WireGuard app → tap your tunnel → pencil/edit icon.
+2. Scroll to **All applications** → switch to **Exclude selected applications** (or **Only include selected applications** for the opposite).
+3. Check the apps that should bypass the VPN (banking, maps, carrier apps, etc.). Save.
+
+**Mobile — iOS:**
+
+iOS doesn't expose per-app VPN routing to consumer apps — it's an MDM-only feature. Workarounds:
+
+- Use **On-Demand** rules (tunnel edit → *On Demand*) to auto-disable the VPN on trusted Wi-Fi SSIDs (home, office).
+- Exclude specific IP ranges via `AllowedIPs` the same way as desktop above.
+- Toggle the tunnel off manually for the one app that's misbehaving, then back on after.
+
 ### Revoke Your API Token After Setup
 
 Once your VPN is running, you no longer need the DigitalOcean API token. Revoking it eliminates the risk of token compromise.
